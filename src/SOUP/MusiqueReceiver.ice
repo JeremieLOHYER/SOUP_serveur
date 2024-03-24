@@ -9,10 +9,15 @@ module SOUP
 
     interface MusiqueReceiver
     {
-        string getSongs();
+        void AddClient(string adress, string port);
+        void getSongs();
         void select(string song);
         void play();
         void pause();
         void stop();
+    };
+    interface MusiqueSender
+    {
+        void responseGetSongs(string songs);
     }
 }
