@@ -19,6 +19,7 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
 
     def __init__(self, serverTemplate):
         self.media_file_path += serverTemplate.styleName
+        self.communicator = serverTemplate.communicator
         self.template = None
 
         # Creating a VLC instance
@@ -28,14 +29,16 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
         self.player = self.instance.media_player_new()
 
     def addClient(self, adress, port, current):
-        self.template = ClientTemplate(adress, port)
+        self.template = ClientTemplate(adress, port, self.communicator)
 
     def getSongs(self, current):
         list = os.listdir('./')
         retList = ""
         for object in list:
-            if not object.__contains__(".py"):
-                retList += object + "\n"
+            if not object.__contains__(".py") and not object.__contains__("__"):
+                for song in os.listdir('./' + object + "/"):
+                    if song.__contains__(".mp3"):
+                        retList += object + "/" + song + "\n"
         self.template.musiqueSender.responseGetSongs(retList)
 
     def select(self, songName, current):
@@ -85,13 +88,11 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
 class ClientTemplate:
     port = "5000"
     adress = "localhost"
-    musiqueSender = None
 
-    def __init__(self, adress, port):
-        with Ice.initialize(sys.argv) as communicator:
-            proxy = communicator.stringToProxy("musiqueSender:default -h " + adress + " -p " + port)
-            self.musiqueSender = SOUP.MusiqueSenderPrx.checkedCast(proxy)
-            print("connected")
+    def __init__(self, adress, port, communicator):
+        proxy = communicator.stringToProxy("musiqueSender:default -h " + adress + " -p " + port)
+        self.musiqueSender = SOUP.MusiqueSenderPrx.checkedCast(proxy)
+        print("connected")
 
 
 class ServerTemplate:
@@ -100,15 +101,16 @@ class ServerTemplate:
     adress = "localhost"
 
     def __init__(self, adress = "localhost", port = "10000", styleName = ""):
+        self.communicator = Ice.initialize(sys.argv)
         self.adress = adress
         self.port = port
         self.styleName = styleName
 
-    def start(self, communicator):
+    def start(self):
         #
         # Install a signal handler to shutdown the communicator on Ctrl-C
         #
-        adapter = communicator.createObjectAdapterWithEndpoints("MusiqueReceiver", "default -h " + self.adress + " -p " + self.port)
+        adapter = self.communicator.createObjectAdapterWithEndpoints("MusiqueReceiver", "default -h " + self.adress + " -p " + self.port)
         adapter.add(MusiqueReceiverI(self), Ice.stringToIdentity("musiqueReceiver"))
         adapter.activate()
         print("server UP")
@@ -118,12 +120,11 @@ class ServerTemplate:
         # Ice.initialize returns an initialized Ice communicator,
         # the communicator is destroyed once it goes out of scope.
         #
-        with Ice.initialize(sys.argv) as communicator:
-            signal.signal(signal.SIGINT, lambda signum, frame: communicator.shutdown())
+            signal.signal(signal.SIGINT, lambda signum, frame: self.communicator.shutdown())
             if hasattr(signal, 'SIGBREAK'):
-                signal.signal(signal.SIGBREAK, lambda signum, frame: communicator.shutdown())
-            self.start(communicator)
-            communicator.waitForShutdown()
+                signal.signal(signal.SIGBREAK, lambda signum, frame: self.communicator.shutdown())
+            self.start()
+            self.communicator.waitForShutdown()
 
 
 
