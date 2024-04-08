@@ -17,6 +17,7 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
 
     media = None
 
+
     def __init__(self, serverTemplate):
         self.media_file_path += serverTemplate.styleName
         self.communicator = serverTemplate.communicator
@@ -32,22 +33,93 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
         self.template = ClientTemplate(adress, port, self.communicator)
 
     def getSongs(self, current):
+        retList = self.get_song_list()
+        retString = ""
+        for song in retList:
+            retString += song + "\n"
+        self.template.musiqueSender.responseGetSongs(retString)
+
+    def getSongsByName(self, song_name: str, current):
         list = os.listdir('./')
         retList = ""
         for object in list:
             if not object.__contains__(".py") and not object.__contains__("__"):
                 for song in os.listdir('./' + object + "/"):
-                    if song.__contains__(".mp3"):
+                    if song.__contains__(".mp3") and song.__contains__(song_name):
                         retList += object + "/" + song + "\n"
         self.template.musiqueSender.responseGetSongs(retList)
+    def getSongsByAuthor(self, author_name: str, current):
+        list_dir = os.listdir('./')
+        ret_list = ""
+        for object in list_dir:
+            if not object.__contains__(".py") and not object.__contains__("__"):
+                for song in os.listdir('./' + object + "/"):
+                    if song.__contains__(".mp3"):
+                        ret_list = ret_list
+                        # ret_list += object + "/" + song + "\n" TODO: récupérer le nom de l'auteur
+        self.template.musiqueSender.responseGetSongs(ret_list)
+
+    upload_completion: [bool]
+    upload_data: [bytes]
+    upload_song_name: str
+    upload_style: str
+
+    def prepareUpload(self, style: str, song_name: str, nb_blocs: int, current):
+        print("preparing download")
+        self.upload_style = style
+        self.upload_song_name = song_name
+        self.upload_completion = []
+        self.upload_data = []
+        for index in range(0,nb_blocs):
+            self.upload_completion.append(False)
+        print("download prepared " + str(nb_blocs) + " blocs")
+
+    def upload(self, bloc_id: int, data: bytes, current):
+        self.upload_data.append(data)
+        self.upload_completion[bloc_id] = True
+        self.template.musiqueSender.responseGetCompletion(self.upload_completion.count(True))
+
+        if all(self.upload_completion):
+            # Concaténez toutes les données pour reconstruire le fichier complet
+            full_data = b"".join(self.upload_data)
+
+            # Déterminez le chemin où enregistrer le fichier
+            # Par exemple, enregistrez-le dans un dossier spécifique avec le nom spécifié
+            save_path = "./" + self.upload_style + "/" + self.upload_song_name
+
+            print("saving on : " + save_path)
+
+            # Vérifiez si le dossier existe, sinon créez-le
+            if not os.path.exists(os.path.dirname(save_path)):
+                os.makedirs(os.path.dirname(save_path))
+
+            # Enregistrez les données dans un nouveau fichier
+            with open(save_path, "wb") as file:
+                file.write(full_data)
+
+            self.resetUpload()
+
+    def resetUpload(self):
+        # Réinitialisez toutes les variables d'upload pour une nouvelle transaction
+        self.upload_data = [None] * len(self.upload_completion)
+        self.upload_completion = [False] * len(self.upload_completion)
+        self.upload_song_name = ""
+        self.upload_style = ""
 
     def select(self, songName, current):
 
+        retList = self.get_song_list()
+
+        for song in retList:
+            if song.__contains__(songName):
+                songName = song
+                break
         # Creating a media object
         # vlm = self.instance.vlm_add_broadcast("MyBroadcast", self.media_file_path + songName,
         #                                   ":sout=#rtp{sdp=rtsp://" + current.con.getInfo().localAddress + ":8554/} :no-sout-all :sout-keep", 0, [],
         #                                   True, False)
-        self.media = self.instance.media_new(self.media_file_path + songName)
+        mediaPath = self.media_file_path + songName
+        self.media = self.instance.media_new(mediaPath)
 
         self.media.add_option(':sout=rtp/ts://localhost:8554/')
         #
@@ -55,7 +127,7 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
 
         self.player.set_media(self.media)
         self.player.audio_set_volume(0)
-        print("media changed to :",songName)
+        print("media changed to :",mediaPath)
 
     def play(self, current):
         if self.media != None:
@@ -77,7 +149,15 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
             self.media = None
             print("song stopped")
 
-
+    def get_song_list(self):
+        list = os.listdir('./')
+        retList = []
+        for object in list:
+            if not object.__contains__(".py") and not object.__contains__("__"):
+                for song in os.listdir('./' + object + "/"):
+                    if song.__contains__(".mp3"):
+                        retList.append(object + "/" + song)
+        return retList
 
         # # Create a new vlm object
         #

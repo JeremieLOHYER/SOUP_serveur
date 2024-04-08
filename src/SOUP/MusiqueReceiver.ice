@@ -6,6 +6,8 @@
 
 module SOUP
 {
+    sequence<byte> dataArray;
+
     interface Registry
     {
         void addServer(string address, string port);
@@ -14,7 +16,10 @@ module SOUP
     {
         void addClient(string adress, string port);
         void getSongs();
-        string getStyle();
+        void getSongsByName(string songName);
+        void getSongsByAuthor(string author);
+        void prepareUpload(string style, string songName, int nbBlocs);
+        void upload(int blocId, dataArray data);
         void select(string song);
         void play();
         void pause();
@@ -23,5 +28,6 @@ module SOUP
     interface MusiqueSender
     {
         void responseGetSongs(string songs);
+        void responseGetCompletion(int complete);
     }
 }
