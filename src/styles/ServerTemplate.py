@@ -44,18 +44,23 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
     def select(self, songName, current):
 
         # Creating a media object
+        # vlm = self.instance.vlm_add_broadcast("MyBroadcast", self.media_file_path + songName,
+        #                                   ":sout=#rtp{sdp=rtsp://" + current.con.getInfo().localAddress + ":8554/} :no-sout-all :sout-keep", 0, [],
+        #                                   True, False)
         self.media = self.instance.media_new(self.media_file_path + songName)
 
-        # Setting up the media player with the media object
+        self.media.add_option(':sout=rtp/ts://localhost:8554/')
+        #
+        # # Setting up the media player with the media object
+
         self.player.set_media(self.media)
-        self.player.audio_set_volume(100)
+        self.player.audio_set_volume(0)
         print("media changed to :",songName)
 
     def play(self, current):
         if self.media != None:
             # Starting the broadcasting
             # Specify your desired IP and port for broadcasting
-            # Here, we are using UDP for broadcasting
             print("song playing")
             self.player.play()
 
@@ -75,9 +80,6 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
 
 
         # # Create a new vlm object
-        # vlm = instance.vlm_add_broadcast("MyBroadcast", media_file_path,
-        #                                  ":sout=#duplicate{dst=std{access=udp,mux=ts,dst=239.255.0.1:1234}}", 0, [],
-        #                                  True, False)
         #
         # # Wait for the broadcast to finish
         # input("Press any key to stop the broadcast...\n")
@@ -94,17 +96,28 @@ class ClientTemplate:
         self.musiqueSender = SOUP.MusiqueSenderPrx.checkedCast(proxy)
         print("connected")
 
+class RegistryTemplate:
+    port = "5000"
+    address = "localhost"
+
+    def __init__(self, adress, port, communicator):
+        proxy = communicator.stringToProxy("registry:default -h " + adress + " -p " + port)
+        self.registry = SOUP.RegistryPrx.checkedCast(proxy)
+        print("connected")
+
 
 class ServerTemplate:
 
     port = "10000"
     adress = "localhost"
 
-    def __init__(self, adress = "localhost", port = "10000", styleName = ""):
+    def __init__(self, adress = "localhost", port = "10000", registryAddress = "localhost", registryPort = "4000", styleName = ""):
         self.communicator = Ice.initialize(sys.argv)
         self.adress = adress
         self.port = port
         self.styleName = styleName
+        #<self.registry = RegistryTemplate(registryAddress, registryPort, self.communicator)
+        #self.registry.registry.addServer(adress, port)
 
     def start(self):
         #
