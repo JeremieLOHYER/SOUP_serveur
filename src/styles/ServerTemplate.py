@@ -1,9 +1,8 @@
 import os
-import random
 import signal
 import sys
-import time
 
+import mutagen
 import Ice
 import vlc
 
@@ -51,12 +50,20 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
     def getSongsByAuthor(self, author_name: str, current):
         list_dir = os.listdir('./')
         ret_list = ""
+
         for object in list_dir:
-            if not object.__contains__(".py") and not object.__contains__("__"):
-                for song in os.listdir('./' + object + "/"):
-                    if song.__contains__(".mp3"):
-                        ret_list = ret_list
-                        # ret_list += object + "/" + song + "\n" TODO: récupérer le nom de l'auteur
+            if not object.endswith(".py") and not "__" in object:
+                for song_file in os.listdir('./' + object + "/"):
+                    if song_file.endswith(".mp3"):
+                        song_path = './' + object + "/" + song_file
+                        try:
+                            audio = mutagen.File(song_path, easy=True)
+                            print("artist name : ",audio['artist'][0])
+                            if 'artist' in audio and audio['artist'][0] == author_name:
+                                ret_list += object + "/" + song_file + "\n"
+                        except Exception as e:
+                            print(f"Error reading metadata for {song_file}: {e}")
+
         self.template.musiqueSender.responseGetSongs(ret_list)
 
     upload_completion: [bool]
