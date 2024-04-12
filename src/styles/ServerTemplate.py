@@ -128,7 +128,11 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
         mediaPath = self.media_file_path + songName
         self.media = self.instance.media_new(mediaPath)
 
-        self.media.add_option(':sout=rtp/ts://localhost:8554/')
+        option = ':sout=rtp/ts://' + getIP.get_ip() + ':32470/'
+
+        print("broadcasting : " + option)
+
+        self.media.add_option(option)
         #
         # # Setting up the media player with the media object
 
