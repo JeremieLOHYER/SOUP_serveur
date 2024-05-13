@@ -1,3 +1,4 @@
+import enum
 import os
 import signal
 import sys
@@ -6,15 +7,25 @@ import mutagen
 import Ice
 import vlc
 
+from stringComparator import compare
+
 Ice.loadSlice('../SOUP/MusiqueReceiver.ice')
 import SOUP
 
+status_disabled = 0
+status_playing = 1
+status_stopped = 2
 
 class MusiqueReceiverI(SOUP.MusiqueReceiver):
     # Path to your media file
     media_file_path = "../styles/"
 
+
+
+
     media = None
+    media_name = 'media_name'
+    status = status_disabled
 
 
     def __init__(self, serverTemplate):
@@ -23,7 +34,7 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
         self.template = None
 
         # Creating a VLC instance
-        self.instance = vlc.Instance("--no-video")
+        self.instance = vlc.libvlc_new(0, []);
 
         # Creating a media player
         self.player = self.instance.media_player_new()
@@ -117,48 +128,59 @@ class MusiqueReceiverI(SOUP.MusiqueReceiver):
 
         retList = self.get_song_list()
 
-        for song in retList:
-            if song.__contains__(songName):
-                songName = song
-                break
+        best = 0
+        bestValue = 0.0
+
+        for index in range(0, len(retList)):
+            comp = compare(retList[index],songName)
+            if comp > bestValue:
+                bestValue = comp
+                best = index
+
+
+
         # Creating a media object
         # vlm = self.instance.vlm_add_broadcast("MyBroadcast", self.media_file_path + songName,
         #                                   ":sout=#rtp{sdp=rtsp://" + current.con.getInfo().localAddress + ":8554/} :no-sout-all :sout-keep", 0, [],
         #                                   True, False)
-        mediaPath = self.media_file_path + songName
-        self.media = self.instance.media_new(mediaPath)
+        mediaPath = self.media_file_path + retList[best]
+        #self.media = self.instance.media_new(mediaPath)
 
-        option = ':sout=rtp/ts://' + getIP.get_ip() + ':32470/'
+        option = '#rtp{sdp=rtsp://' + getIP.get_ip() + ':32470}'
 
         print("broadcasting : " + option)
 
-        self.media.add_option(option)
+        #self.media.add_option(option)
         #
         # # Setting up the media player with the media object
 
-        self.player.set_media(self.media)
-        self.player.audio_set_volume(0)
+        #self.player.set_media(self.media)
+        #self.player.audio_set_volume(0)
+
+        if self.status != status_disabled:
+            vlc.libvlc_vlm_release(self.instance)
+
+        vlc.libvlc_vlm_add_broadcast(self.instance, vlc.str_to_bytes(self.media_name), vlc.str_to_bytes(mediaPath), vlc.str_to_bytes(option), 0, [], True, False)
+
+        self.status = status_stopped
         print("media changed to :",mediaPath)
 
     def play(self, current):
-        if self.media != None:
-            # Starting the broadcasting
-            # Specify your desired IP and port for broadcasting
-            print("song playing")
-            self.player.play()
+        vlc.libvlc_vlm_play_media(self.instance, vlc.str_to_bytes(self.media_name))
+        print("song playing")
+        self.status = status_playing
 
     def pause(self, current):
         if self.media != None:
             # Stopping the media player
             self.player.pause()
             print("song paused")
+            self.status = status_stopped
 
     def stop(self, current):
-        if self.media != None:
-            # Stopping the media player
-            self.player.stop()
-            self.media = None
-            print("song stopped")
+        vlc.libvlc_vlm_release(self.instance)
+        print("song stopped")
+        self.status = status_disabled
 
     def get_song_list(self):
         list = os.listdir('./')
@@ -237,5 +259,5 @@ class ServerTemplate:
 if __name__ == '__main__':
     import getIP
     print("local IP :",getIP.get_ip())
-    clientTest = ServerTemplate(getIP.get_ip(),"5000")
+    clientTest = ServerTemplate(getIP.get_ip(),"5001")
     clientTest.listen()
